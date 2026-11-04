@@ -1,0 +1,257 @@
+// PatiPanel veri modeli
+// Yerelde SQLite kullanilir. Canliya cikarken provider = "postgresql" yapip
+// DATABASE_URL'i PostgreSQL (Supabase/Neon) adresine cevirmek yeterli.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Her klinik platformdaki bir "kiraci"dir. Tum veriler clinicId ile ayrilir.
+model Clinic {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  domain          String?  @unique
+  name            String
+  active          Boolean  @default(true)
+  plan            String   @default("KLINIK") // VITRIN | KLINIK | PRO
+
+  // Gorunum
+  theme           String   @default("sicak") // sicak | modern | egzotik
+  pawType         String   @default("karisik") // kedi | kopek | karisik | kus
+  animationLevel  String   @default("coskulu") // sakin | normal | coskulu
+  cursorTrail     Boolean  @default(true)
+  primaryColor    String   @default("#247C86")
+  accentColor     String   @default("#F06F62")
+  bgColor         String   @default("#F6F3EC")
+  darkColor       String   @default("#292B3D")
+  goldColor       String   @default("#C7A77A")
+  logoUrl         String?
+
+  // Icerik
+  tagline         String   @default("Can dostlarınız emin ellerde")
+  heroTitle       String   @default("Patili dostunuz için sevgi dolu bakım")
+  heroSubtitle    String   @default("")
+  about           String   @default("")
+
+  // Iletisim
+  phone           String   @default("")
+  whatsapp        String   @default("")
+  email           String   @default("")
+  address         String   @default("")
+  city            String   @default("")
+  mapQuery        String   @default("")
+  emergencyPhone  String   @default("")
+  instagram       String   @default("")
+  googleReviewUrl String   @default("")
+
+  // Randevu
+  workingHours    String   @default("{}") // {"1":[["09:00","18:00"]], ...} 0=Pazar
+  slotMinutes     Int      @default(30)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users        User[]
+  services     Service[]
+  vets         Vet[]
+  owners       Owner[]
+  pets         Pet[]
+  vaccinations Vaccination[]
+  appointments Appointment[]
+  reminders    Reminder[]
+  messages     Message[]
+  gallery      GalleryImage[]
+  testimonials Testimonial[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         String    @default("CLINIC_ADMIN") // SUPERADMIN | CLINIC_ADMIN | STAFF
+  clinicId     String?
+  clinic       Clinic?   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+  createdAt    DateTime  @default(now())
+}
+
+model Session {
+  id             String   @id // rastgele token (cookie degeri)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actingClinicId String?  // super admin bir klinigin paneline girdiginde
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+}
+
+model Service {
+  id          String        @id @default(cuid())
+  clinicId    String
+  clinic      Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name        String
+  description String        @default("")
+  icon        String        @default("stethoscope")
+  durationMin Int           @default(30)
+  priceText   String        @default("")
+  bookable    Boolean       @default(true)
+  order       Int           @default(0)
+  appointments Appointment[]
+}
+
+model Vet {
+  id        String        @id @default(cuid())
+  clinicId  String
+  clinic    Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name      String
+  title     String        @default("Veteriner Hekim")
+  bio       String        @default("")
+  photoUrl  String?
+  bookable  Boolean       @default(true)
+  order     Int           @default(0)
+  appointments Appointment[]
+}
+
+model Owner {
+  id           String        @id @default(cuid())
+  clinicId     String
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String
+  email        String        @default("")
+  kvkkConsent  Boolean       @default(false)
+  consentAt    DateTime?
+  notes        String        @default("")
+  createdAt    DateTime      @default(now())
+  pets         Pet[]
+  appointments Appointment[]
+
+  @@index([clinicId, phone])
+}
+
+model Pet {
+  id           String        @id @default(cuid())
+  clinicId     String
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  ownerId      String
+  owner        Owner         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name         String
+  species      String        @default("Kedi") // Kedi | Kopek | Kus | Tavsan | Diger
+  breed        String        @default("")
+  sex          String        @default("") // Disi | Erkek
+  birthDate    DateTime?
+  color        String        @default("")
+  chipNo       String        @default("")
+  neutered     Boolean       @default(false)
+  notes        String        @default("")
+  cardToken    String        @unique @default(cuid())
+  createdAt    DateTime      @default(now())
+  vaccinations Vaccination[]
+  appointments Appointment[]
+  reminders    Reminder[]
+}
+
+model Vaccination {
+  id        String     @id @default(cuid())
+  clinicId  String
+  clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  petId     String
+  pet       Pet        @relation(fields: [petId], references: [id], onDelete: Cascade)
+  name      String
+  givenAt   DateTime
+  nextDueAt DateTime?
+  vetName   String     @default("")
+  notes     String     @default("")
+  createdAt DateTime   @default(now())
+  reminders Reminder[]
+}
+
+model Appointment {
+  id         String    @id @default(cuid())
+  clinicId   String
+  clinic     Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  serviceId  String?
+  service    Service?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  vetId      String?
+  vet        Vet?      @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  ownerId    String?
+  owner      Owner?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  petId      String?
+  pet        Pet?      @relation(fields: [petId], references: [id], onDelete: SetNull)
+  startAt    DateTime
+  endAt      DateTime
+  status     String    @default("BEKLIYOR") // BEKLIYOR | ONAYLANDI | TAMAMLANDI | IPTAL | GELMEDI
+  source     String    @default("ONLINE") // ONLINE | PANEL | HATIRLATMA
+  ownerName  String
+  ownerPhone String
+  petName    String    @default("")
+  petSpecies String    @default("")
+  note       String    @default("")
+  reminderId String?
+  reviewAsked Boolean  @default(false)
+  createdAt  DateTime  @default(now())
+
+  @@index([clinicId, startAt])
+}
+
+model Reminder {
+  id            String       @id @default(cuid())
+  clinicId      String
+  clinic        Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  petId         String?
+  pet           Pet?         @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vaccinationId String?
+  vaccination   Vaccination? @relation(fields: [vaccinationId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  type          String       // ASI | RANDEVU | YORUM
+  dueAt         DateTime
+  status        String       @default("GONDERILDI") // GONDERILDI | RANDEVU_ALINDI | IPTAL
+  token         String       @unique @default(cuid())
+  createdAt     DateTime     @default(now())
+  messages      Message[]
+
+  @@index([clinicId, status])
+}
+
+model Message {
+  id            String    @id @default(cuid())
+  clinicId      String
+  clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  channel       String    @default("WHATSAPP") // WHATSAPP | SMS
+  to            String
+  toName        String    @default("")
+  body          String
+  kind          String    @default("BILGI") // ASI | RANDEVU | ONAY | TALEP | YORUM | BILGI
+  status        String    @default("SIMULE") // SIMULE | GONDERILDI | HATA
+  error         String    @default("")
+  reminderId    String?
+  reminder      Reminder? @relation(fields: [reminderId], references: [id], onDelete: SetNull)
+  appointmentId String?
+  createdAt     DateTime  @default(now())
+
+  @@index([clinicId, createdAt])
+}
+
+model GalleryImage {
+  id       String @id @default(cuid())
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  url      String
+  caption  String @default("")
+  order    Int    @default(0)
+}
+
+model Testimonial {
+  id       String @id @default(cuid())
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  author   String
+  petName  String @default("")
+  text     String
+  rating   Int    @default(5)
+}
