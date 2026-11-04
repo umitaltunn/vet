@@ -2,6 +2,16 @@
 // Calistirmak icin: npm run seed   (sifirlamak icin: npm run reset)
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { existsSync, readFileSync } from "fs";
+
+// .env dosyasini oku (node dogrudan calistirildiginda otomatik yuklenmez)
+for (const f of [".env", ".env.example"]) {
+  if (!existsSync(f)) continue;
+  for (const line of readFileSync(f, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*"?(.*?)"?\s*$/);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+  }
+}
 
 const db = new PrismaClient();
 const OFF = 3 * 3600 * 1000;
